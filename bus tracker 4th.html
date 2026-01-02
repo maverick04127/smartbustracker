@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Bus Tracker</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    * { box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+    body { margin: 0; background: #f2f5f9; }
+
+    header {
+      background: linear-gradient(90deg, #1e88e5, #42a5f5);
+      color: white;
+      padding: 16px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: 600;
+    }
+
+    .page {
+      display: none;
+      padding: 20px;
+    }
+
+    .page.active {
+      display: block;
+    }
+
+    .card {
+      max-width: 420px;
+      margin: 40px auto;
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+
+    label {
+      font-size: 14px;
+      margin-top: 12px;
+      display: block;
+    }
+
+    select, input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 6px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+
+    button {
+      margin-top: 18px;
+      background: #1e88e5;
+      color: white;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    #map { height: calc(100vh - 80px); width: 100%; }
+  </style>
+</head>
+<body>
+
+<header>🚌 Smart Bus Tracker</header>
+
+<!-- PAGE 1 : INPUT FORM -->
+<div class="page active" id="formPage">
+  <div class="card">
+    <h3>Track Your Bus</h3>
+
+    <label>Select State</label>
+    <select id="state">
+      <option>Andhra Pradesh</option><option>Arunachal Pradesh</option><option>Assam</option>
+      <option>Bihar</option><option>Chhattisgarh</option><option>Delhi</option>
+      <option>Goa</option><option>Gujarat</option><option>Haryana</option>
+      <option>Himachal Pradesh</option><option>Jharkhand</option><option>Karnataka</option>
+      <option>Kerala</option><option>Madhya Pradesh</option><option>Maharashtra</option>
+      <option>Odisha</option><option>Punjab</option><option>Rajasthan</option>
+      <option>Tamil Nadu</option><option>Telangana</option><option>Uttar Pradesh</option>
+      <option>West Bengal</option>
+    </select>
+
+    <label>Your City</label>
+    <input id="location" placeholder="e.g. Bengaluru" />
+
+    <label>Pickup Location (Bus Stop / Landmark)</label>
+    <input id="pickup" placeholder="e.g. Main Gate, XYZ Circle" />
+
+    <label>Bus Type</label>
+    <select id="busType">
+      <option value="">Select</option>
+      <option>Government Bus</option>
+      <option>College Bus</option>
+      <option>Private Bus</option>
+    </select>
+
+    <label id="busLabel" style="display:none;">Bus Number</label>
+    <input id="busNumber" style="display:none;" placeholder="e.g. 12A" />
+
+    <button onclick="startTracking()">Start Tracking</button>
+  </div>
+</div>
+
+<!-- PAGE 2 : MAP -->
+<div class="page" id="mapPage">
+  <div id="map"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const busType = document.getElementById('busType');
+  const pickupInput = document.getElementById('pickup');
+  const busLabel = document.getElementById('busLabel');
+  const busNumber = document.getElementById('busNumber');
+
+  busType.onchange = () => {
+    if (busType.value) {
+      busLabel.style.display = 'block';
+      busNumber.style.display = 'block';
+    }
+  };
+
+  let map;
+
+  function startTracking() {
+    document.getElementById('formPage').classList.remove('active');
+    document.getElementById('mapPage').classList.add('active');
+
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+
+        // Pickup location assumed near user (can be replaced by geocoding)
+        const pickupLat = lat + 0.001;
+        const pickupLon = lon + 0.001;
+        const lon = position.coords.longitude;
+
+        map = L.map('map').setView([lat, lon], 15);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // User location marker
+        L.marker([pickupLat, pickupLon]).addTo(map)
+          .bindPopup('Your Pickup Location')
+          .openPopup();
+
+        // Simulated bus GPS near user
+        const busLat = lat + 0.002;
+        const busLon = lon + 0.002;
+
+        // Simulated moving bus GPS
+        let busLat = lat + 0.002;
+        let busLon = lon + 0.002;
+
+        const redDot = L.circleMarker([busLat, busLon], {
+          radius: 10,
+          color: 'red',
+          fillColor: 'red',
+          fillOpacity: 0.9
+        }).addTo(map);
+
+        // Blinking effect
+        let blink = false;
+        function startBlinking() {
+          setInterval(() => {
+            blink = !blink;
+            redDot.setStyle({ fillOpacity: blink ? 0.2 : 0.9 });
+          }, 500);
+        }([busLat, busLon], {
+          radius: 10,
+          color: 'red',
+          fillColor: 'red',
+          fillOpacity: 0.9
+        }).addTo(map);
+
+        const etaBox = L.control({ position: 'bottomleft' });
+        etaBox.onAdd = function () {
+          const div = L.DomUtil.create('div', 'eta-box');
+          div.style.background = 'white';
+          div.style.padding = '10px';
+          div.style.borderRadius = '8px';
+          div.style.boxShadow = '0 4px 10px rgba(0,0,0,0.3)';
+          div.innerHTML = '<strong>ETA:</strong> Calculating...';
+          return div;
+        };
+        etaBox.addTo(map);
+
+        function moveBus() {
+          busLat -= 0.0001;
+          busLon -= 0.0001;
+          redDot.setLatLng([busLat, busLon]);
+
+          const distance = map.distance([pickupLat, pickupLon], [busLat, busLon]);([lat, lon], [busLat, busLon]);
+          const speed = 8;
+          const eta = Math.max(Math.round(distance / speed / 60), 1);
+
+          if (eta <= 10 && !window.alerted) {
+            startBlinking();
+            alert('🚌 Bus is arriving in ' + eta + ' minutes!');
+            window.alerted = true;
+          }(Math.round(distance / speed / 60), 1);
+
+          document.querySelector('.eta-box').innerHTML = `<strong>ETA:</strong> ${eta} min`;
+        }
+
+        setInterval(moveBus, 3000);
+
+        redDot.bindPopup('Live Bus Location');([busLat, busLon], {
+          radius: 10,
+          color: 'red',
+          fillColor: 'red',
+          fillOpacity: 0.9
+        }).addTo(map);
+
+        redDot.bindPopup('Live Bus Location');
+      },
+      () => {
+        alert('Location permission denied');
+      }
+    );
+  }
+</script>
+
+</body>
+</html>
